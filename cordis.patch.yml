@@ -1,0 +1,45 @@
+# DSH patch overlay reference: mount the Slack channel plugin.
+#
+# Run with one of:
+#
+#   pnpm dsh web --patch /absolute/path/to/this/cordis.patch.yml
+#   pnpm dsh --profile headless --patch /absolute/path/to/this/cordis.patch.yml
+#
+# Replace /absolute/path/to/dsh-slack-channel with your checkout path, or
+# install the plugin into a profile with `dsh plugin add` and reference it by
+# package name.
+#
+# Slack app prerequisites: Socket Mode enabled, bot events message.channels /
+# message.groups / message.im subscribed, scopes chat:write + history +
+# reactions:write, bot invited to the target channels.
+#
+# Security: the allowlist below denies every channel by default. A bot token
+# is a credential — whoever can post into a served channel can drive a full
+# agent with shell tools.
+
+- insert:
+    - id: slack-channel
+      name: /absolute/path/to/dsh-slack-channel/src/index.js
+      inject: [agents]
+      config:
+        botToken: !!js process.env.SLACK_BOT_TOKEN
+        appToken: !!js process.env.SLACK_APP_TOKEN
+        # Agent route for the per-channel sessions this plugin creates.
+        # provider: deepseek-official
+        # model: deepseek-chat
+        # Workspace root for created agents (default: the server's cwd).
+        # cwd: /Users/you/work
+        # Channel authorization: deny by default, then allow specific ids.
+        allowedChannelIds: []
+        # allowAllChannels: true         # explicit escape hatch
+        # notifyUnauthorized: false      # reply "not authorized" to strangers
+        # Conversation continuity across restarts:
+        # stateFile: ~/.dsh-slack-channel-state.json
+        # Enrollment flow alternative to editing this file: set a one-time
+        # secret, then post "/pair <secret>" in the target channel.
+        # pairToken: change-me-before-use
+        # UX knobs (defaults shown):
+        # replyMode: last          # send the final assistant message of a turn
+        # threadReplies: true      # reply in-thread on the originating message
+        # maxReplyChars: 4000      # split longer replies into chunks
+        # ackReaction: hourglass   # "working" emoji; '' disables

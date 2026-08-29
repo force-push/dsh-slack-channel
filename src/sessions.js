@@ -1,0 +1,171 @@
+// Per-chat agent session management: one live agent (own session) per
+// Telegram chat, created through ctx.agents the same way the in-repo ACP
+// bridge creates its sessions. Optional state-file persistence records the
+// chat-to-session mapping so a restart resumes conversations instead of
+// silently starting over.
+
+import { randomUUID } from 'node:crypto'
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
+
+/** Load the persisted chat map, tolerating absent or corrupt files. */
+function loadState(stateFile) {
+  if (stateFile === undefined) return { version: 1, chats: {}, enrolled: [] }
+  try {
+    const parsed = JSON.parse(readFileSync(stateFile, 'utf8'))
+    if (parsed !== null && typeof parsed === 'object' && parsed.chats !== null && typeof parsed.chats === 'object') {
+      if (Array.isArray(parsed.enrolled) !== true) parsed.enrolled = []
+      return parsed
+    }
+  } catch { /* absent or corrupt: start empty */ }
+  return { version: 1, chats: {}, enrolled: [] }
+}
+
+/**
+ * Build the chat-session manager.
+ * @param options.ctx - the cordis context carrying the agents registry.
+ * @param options.config - validated plugin config (provider/model/cwd/stateFile).
+ * @param options.logger - named plugin logger.
+ */
+export function createChatSessions({ ctx, config, logger }) {
+  const byChat = new Map()
+  const bySession = new Map()
+  let state = loadState(config.stateFile)
+  /** Chats enrolled via the /pair flow; merged into authorization. */
+  const enrolled = new Set(state.enrolled.map(String))
+
+  function agentOptions() {
+    const options = {}
+    if (config.provider !== undefined) options.provider = config.provider
+    if (config.model !== undefined) options.model = config.model
+    return options
+  }
+
+  async function create(chatId, resumeSessionId) {
+    const cwd = config.cwd ?? process.cwd()
+    let handle
+    let resumed = false
+    if (resumeSessionId !== undefined) {
+      try {
+        handle = await ctx.agents.resume({ resumeSessionId })
+        resumed = true
+      } catch (error) {
+        logger.warn('resume of session ' + resumeSessionId + ' failed (' + (error?.message ?? String(error)) + '); starting a fresh session')
+      }
+    }
+    if (handle === undefined) {
+      handle = await ctx.agents.create({
+        sessionId: randomUUID(),
+        meta: { cwd },
+        agentOptions: agentOptions(),
+      })
+    }
+    return {
+      chatId,
+      agent: handle.agent,
+      dispose: handle.dispose,
+      resumed,
+      /** Messages waiting while the agent works; drained FIFO on settle. */
+      queue: [],
+      busy: false,
+      /** Committed assistant texts of the open turn, in arrival order. */
+      turnTexts: [],
+      /** Collected texts of the finished-but-undelivered turn. */
+      finishedText: undefined,
+      collector: undefined,
+      typingTimer: undefined,
+    }
+  }
+
+  /**
+   * Return the live record for a chat, creating (or resuming) one on first
+   * use. fresh=true disposes the previous record first (the /new command).
+   */
+  async function get(chatId, { fresh = false } = {}) {
+    const key = String(chatId)
+    if (fresh === false) {
+      const existing = byChat.get(key)
+      if (existing !== undefined) return existing
+    }
+    const previous = byChat.get(key)
+    if (previous !== undefined) {
+      stopTyping(previous)
+      byChat.delete(key)
+      bySession.delete(previous.agent.session.id)
+      try {
+        await previous.dispose()
+      } catch (error) {
+        logger.warn('dispose of previous session failed: ' + (error?.message ?? String(error)))
+      }
+    }
+    const known = fresh === true ? undefined : state.chats[key]?.sessionId
+    const record = await create(chatId, known)
+    byChat.set(key, record)
+    bySession.set(record.agent.session.id, record)
+    state.chats[key] = { sessionId: record.agent.session.id, updatedAt: new Date().toISOString() }
+    saveState()
+    return record
+  }
+
+  /** The record owning exactly this session id, for event routing. */
+  function lookup(sessionId) {
+    return bySession.get(sessionId)
+  }
+
+  /** The record for a chat id, if one is live. */
+  function record(chatId) {
+    return byChat.get(String(chatId))
+  }
+
+  function stopTyping(record) {
+    if (record.typingTimer !== undefined) {
+      clearInterval(record.typingTimer)
+      record.typingTimer = undefined
+    }
+  }
+
+  function saveState() {
+    if (config.stateFile === undefined) return
+    try {
+      mkdirSync(dirname(config.stateFile), { recursive: true })
+      const tmp = config.stateFile + '.tmp'
+      writeFileSync(tmp, JSON.stringify(state, null, 2) + '\n')
+      renameSync(tmp, config.stateFile)
+    } catch (error) {
+      logger.warn('state file write failed: ' + (error?.message ?? String(error)))
+    }
+  }
+
+  /**
+   * Enroll one chat via the /pair flow: authorization merges the enrolled
+   * set, and the id persists through the state file so it survives restarts.
+   */
+  function enroll(chatId) {
+    const key = String(chatId)
+    enrolled.add(key)
+    if (state.enrolled.includes(key) === false) state.enrolled.push(key)
+    saveState()
+  }
+
+  /** Whether a chat was enrolled through the pairing flow. */
+  function isEnrolled(chatId) {
+    return enrolled.has(String(chatId))
+  }
+
+  /** Dispose every live chat session (plugin teardown). */
+  async function disposeAll() {
+    const records = [...byChat.values()]
+    byChat.clear()
+    bySession.clear()
+    for (const record of records) {
+      stopTyping(record)
+      try {
+        await record.dispose()
+      } catch (error) {
+        logger.warn('session dispose failed: ' + (error?.message ?? String(error)))
+      }
+    }
+  }
+
+  return { get, lookup, record, stopTyping, disposeAll, enroll, isEnrolled, size: () => byChat.size }
+}

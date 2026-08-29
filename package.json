@@ -1,0 +1,46 @@
+{
+  "name": "dsh-slack-channel",
+  "version": "0.1.0",
+  "description": "Slack channel for DeepSeek Harness — Socket Mode bot that drives one DSH agent session per channel with zero npm dependencies",
+  "private": false,
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "slack",
+    "bot",
+    "channel",
+    "socket-mode",
+    "cordis",
+    "agent"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/force-push/dsh-slack-channel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/force-push/dsh-slack-channel/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node tests/run.mjs"
+  }
+}
