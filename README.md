@@ -123,13 +123,18 @@ Prefer not to restart on config changes? Set `pairToken` + `stateFile` once, the
 
 ## Channel commands
 
+Commands are plain messages with a verb prefix. **Prefer `!`**: Slack's own
+client intercepts leading-`/` text as (unregistered) slash commands —
+"*Only visible to you — /new is not a valid command*" — and it never reaches
+the bot. A leading space (` /new`) also gets through; both spellings work.
+
 | Command | Effect |
 |---|---|
-| /new | dispose the channel's session and start a fresh one |
-| /stop | cancel the running turn and clear the queue |
-| /id | reply with the channel id (for `allowedChannelIds`) |
-| /pair <token> | enroll this channel when `pairToken` is configured |
-| /help, /start | command summary |
+| !new (or /new) | dispose the channel's session and start a fresh one |
+| !stop (or /stop) | cancel the running turn and clear the queue |
+| !id (or /id) | reply with the channel id (for `allowedChannelIds`) |
+| !pair <token> (or /pair) | enroll this channel when `pairToken` is configured |
+| !help, !start (or /…) | command summary |
 
 Anything else goes to the agent as a user message. Messages posted while the agent is busy are queued per channel and drained in order (with a configurable ack). Replies post in-thread when `threadReplies` is on.
 

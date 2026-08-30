@@ -31,12 +31,12 @@ export const inject = ['agents']
 
 const HELP_TEXT = [
   'DeepSeek Harness agent channel.',
-  'Commands:',
-  '/new — start a fresh session (clears channel memory)',
-  '/stop — cancel the running turn',
-  '/id — show this channel id (for allowedChannelIds)',
-  '/pair <token> — enroll this channel (when pairToken is configured)',
-  '/help — this text',
+  'Commands (prefer the ! prefix — Slack intercepts leading / as its own slash commands):',
+  '!new — start a fresh session (clears channel memory)',
+  '!stop — cancel the running turn',
+  '!id — show this channel id (for allowedChannelIds)',
+  '!pair <token> — enroll this channel (when pairToken is configured)',
+  '!help — this text',
   'Anything else you post goes to the agent.',
 ].join('\n')
 
@@ -75,6 +75,20 @@ export function apply(ctx, config) {
     return config.allowAllChannels === true
       || config.allowedChannelIds.includes(channelId)
       || sessions.isEnrolled(channelId)
+  }
+
+  /**
+   * Recognize a command verb from a message: leading "/" (the historical
+   * spelling) or "!". Slack's own client intercepts "/"-messages as
+   * (unregistered) slash commands — "Only visible to you" — so they never
+   * reach the bot unless the sender prepends a space; the trim in
+   * handleEvent normalizes that back. "!" is delivered verbatim and is the
+   * reliable prefix in real Slack. Non-command text yields undefined.
+   */
+  function asCommand(text) {
+    if (text.startsWith('!')) return text.slice(1)
+    if (text.startsWith('/')) return text.slice(1)
+    return undefined
   }
 
   /**
@@ -184,13 +198,14 @@ export function apply(ctx, config) {
     if (channel === undefined) return
     const text = (event.text ?? '').trim()
     if (text.length === 0) return
+    const command = asCommand(text)
 
     // Pairing is the one command an unauthorized channel may use: an
     // operator secret enrolls the channel without a host restart. A wrong
     // token falls through to the gate — no token-guessing oracle beyond
     // Slack's own rate limits.
-    if (config.pairToken !== undefined && text.startsWith('/pair')) {
-      if (text.slice('/pair'.length).trim() === config.pairToken) {
+    if (config.pairToken !== undefined && command === 'pair') {
+      if (text.slice(5).trim() === config.pairToken) {
         sessions.enroll(channel)
         return sendReplyText(channel, event.ts, 'Paired — this channel is now authorized.')
       }
@@ -207,13 +222,13 @@ export function apply(ctx, config) {
       return
     }
 
-    if (text === '/start' || text === '/help') return sendReplyText(channel, event.ts, HELP_TEXT)
-    if (text === '/id' || text === '/channelid') return sendReplyText(channel, event.ts, channel)
-    if (text === '/new') {
+    if (command === 'start' || command === 'help') return sendReplyText(channel, event.ts, HELP_TEXT)
+    if (command === 'id' || command === 'channelid') return sendReplyText(channel, event.ts, channel)
+    if (command === 'new') {
       await sessions.get(channel, { fresh: true })
       return sendReplyText(channel, event.ts, 'Started a fresh session.')
     }
-    if (text === '/stop') {
+    if (command === 'stop') {
       const record = sessions.record(channel)
       if (record === undefined || record.busy !== true) return sendReplyText(channel, event.ts, 'Nothing is running.')
       record.queue.length = 0

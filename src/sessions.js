@@ -85,7 +85,11 @@ export function createChatSessions({ ctx, config, logger }) {
     let resumed = false
     if (resumeSessionId !== undefined) {
       try {
-        handle = await ctx.agents.resume({ resumeSessionId })
+        // Resumed agents seed their first request route from their options
+        // (a fresh loop instance has no logged header of its own), so the
+        // resume MUST carry the same route fresh creates get — otherwise the
+        // persona's strict {{model}} reference fails the first message.
+        handle = await ctx.agents.resume({ resumeSessionId, agentOptions: agentOptions() })
         resumed = true
       } catch (error) {
         logger.warn('resume of session ' + resumeSessionId + ' failed (' + (error?.message ?? String(error)) + '); starting a fresh session')
