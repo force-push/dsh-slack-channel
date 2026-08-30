@@ -83,6 +83,13 @@ function validate(input) {
     cfg.cwd = undefined
   }
 
+  // Permission preset pinned onto every freshly created channel session —
+  // the same named table the web UI's preset switcher offers (e.g.
+  // workspace-write, danger-full-access). Unset keeps the composition
+  // defaults for new sessions.
+  cfg.permissionPreset = optionalString(src.permissionPreset)
+  if (cfg.permissionPreset === null) issues.push({ message: 'permissionPreset must be a non-empty string' })
+
   // Channel authorization. An empty list with allowAllChannels=false (the
   // default) denies every channel: a bot token is a credential and whoever
   // can post into a served channel can drive a full agent with shell tools.

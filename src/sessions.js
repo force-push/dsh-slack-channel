@@ -52,6 +52,31 @@ export function createChatSessions({ ctx, config, logger }) {
     return options
   }
 
+  /**
+   * Pin the configured permission preset onto a freshly created session —
+   * the same write path the web UI's preset switcher uses (permission/preset
+   * plus its sandbox/approval knob transitions), so a channel session starts
+   * with the same sandbox and approval knobs as a web session. Resumed
+   * sessions keep the knobs their log already carries, matching the web rule
+   * that a settings change never rewrites an open conversation. Optional
+   * config over an optional service: unset preset or an unmounted
+   * permissionPresets service keeps the composition defaults, and a failed
+   * application is contained — the session still works with default knobs.
+   */
+  function applyPermissionPreset(handle) {
+    if (config.permissionPreset === undefined) return
+    const presets = ctx.get('permissionPresets')
+    if (presets === undefined) {
+      logger.warn('permissionPreset configured but no permissionPresets service is mounted; keeping composition defaults')
+      return
+    }
+    try {
+      presets.set(handle.agent.session, config.permissionPreset)
+    } catch (error) {
+      logger.warn('permissionPreset ' + JSON.stringify(config.permissionPreset) + ' not applied: ' + (error?.message ?? String(error)))
+    }
+  }
+
   async function create(chatId, resumeSessionId) {
     const cwd = config.cwd ?? process.cwd()
     let handle
@@ -70,6 +95,7 @@ export function createChatSessions({ ctx, config, logger }) {
         meta: { cwd },
         agentOptions: agentOptions(),
       })
+      applyPermissionPreset(handle)
     }
     return {
       chatId,
