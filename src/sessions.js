@@ -92,6 +92,13 @@ export function createChatSessions({ ctx, config, logger }) {
         handle = await ctx.agents.resume({ resumeSessionId, agentOptions: agentOptions() })
         resumed = true
       } catch (error) {
+        if (String(error?.message ?? error).includes('while it is live')) {
+          // The mapped session is open in another surface (e.g. the web UI
+          // holds it). Falling back to a fresh session here would silently
+          // abandon the mapped conversation and overwrite this mapping via
+          // saveState — surface the conflict and keep the mapping instead.
+          throw error
+        }
         logger.warn('resume of session ' + resumeSessionId + ' failed (' + (error?.message ?? String(error)) + '); starting a fresh session')
       }
     }

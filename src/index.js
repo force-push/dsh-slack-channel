@@ -237,7 +237,15 @@ export function apply(ctx, config) {
       return sendReplyText(channel, event.ts, 'Stop requested.')
     }
 
-    const record = await sessions.get(channel)
+    let record
+    try {
+      record = await sessions.get(channel)
+    } catch (error) {
+      // Most notably the single-owner rule: the mapped session is currently
+      // open in another surface (the web UI). Say so instead of forking a
+      // fresh session behind the user's back.
+      return sendReplyText(channel, event.ts, 'This session is currently open in the DSH web interface — close or leave it there, then post here again. (' + errorText(error) + ')')
+    }
     record.collector ??= createTurnCollector()
 
     // The "working" indicator: react on receipt, unreact when the reply
