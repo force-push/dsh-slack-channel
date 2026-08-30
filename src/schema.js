@@ -90,6 +90,26 @@ function validate(input) {
   cfg.permissionPreset = optionalString(src.permissionPreset)
   if (cfg.permissionPreset === null) issues.push({ message: 'permissionPreset must be a non-empty string' })
 
+  // Per-channel workspace overrides: channel id → absolute workspace root.
+  // Lets a Slack sidebar section (channels grouped per project) agree with
+  // DSH: every channel in one section works in that section's workspace.
+  // Slack exposes no bot API for sections, so the grouping lives on the
+  // human side and this map carries the machine side.
+  cfg.channelCwd = {}
+  if (src.channelCwd !== undefined && src.channelCwd !== null) {
+    if (typeof src.channelCwd !== 'object' || Array.isArray(src.channelCwd)) {
+      issues.push({ message: 'channelCwd must be an object mapping channel ids to absolute paths' })
+    } else {
+      for (const [id, value] of Object.entries(src.channelCwd)) {
+        if (typeof id !== 'string' || id.length === 0 || typeof value !== 'string' || !isAbsolute(value)) {
+          issues.push({ message: 'channelCwd[' + JSON.stringify(id) + '] must map to an absolute path' })
+          continue
+        }
+        cfg.channelCwd[id] = value
+      }
+    }
+  }
+
   // Channel authorization. An empty list with allowAllChannels=false (the
   // default) denies every channel: a bot token is a credential and whoever
   // can post into a served channel can drive a full agent with shell tools.

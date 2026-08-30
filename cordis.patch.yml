@@ -29,6 +29,14 @@
         # model: deepseek-chat
         # Workspace root for created agents (default: the server's cwd).
         # cwd: /Users/you/work
+        # Per-channel workspace overrides — agree with a Slack sidebar
+        # section (channels grouped per project): each listed channel's
+        # sessions work in that section's workspace.
+        # channelCwd:
+        #   'C0123456789': /Users/you/work/project-a
+        # Permission preset applied to freshly created sessions — the same
+        # named table the web UI's preset switcher offers.
+        # permissionPreset: workspace-write
         # Channel authorization: deny by default, then allow specific ids.
         allowedChannelIds: []
         # allowAllChannels: true         # explicit escape hatch

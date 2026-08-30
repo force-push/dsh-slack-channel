@@ -78,7 +78,9 @@ export function createChatSessions({ ctx, config, logger }) {
   }
 
   async function create(chatId, resumeSessionId) {
-    const cwd = config.cwd ?? process.cwd()
+    // Channel-scoped workspace first (the Slack-section ↔ DSH-workspace
+    // mapping), then the plugin-wide workspace, then the server's cwd.
+    const cwd = config.channelCwd?.[String(chatId)] ?? config.cwd ?? process.cwd()
     let handle
     let resumed = false
     if (resumeSessionId !== undefined) {

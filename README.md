@@ -145,6 +145,16 @@ Every Slack conversation the bot is in gets its own independent DSH session. Thr
 
 Slack never auto-joins bots to channels — `/invite` per channel (or just use the DM, which needs nothing). Serving *every* channel the bot is a member of without listing ids is `allowAllChannels: true` — weigh that against everyone in the workspace being able to drive the agent.
 
+**Sections ↔ workspaces.** A Slack sidebar section is the natural image of a DSH
+workspace: file one channel per project into a section named for it, and pin
+each channel's workspace with `channelCwd` (falling back to `cwd`). Sections
+are client-side organization — Slack ships no bot API to create or read them —
+so the mapping is agreed on both ends: you group the channels in Slack, the
+config pins each channel's workspace here. Every channel remains one
+independent session (`/new` starts a fresh one) rooted in that workspace,
+carrying the same route, permission preset, and persistence as the web
+interface.
+
 ## Full configuration reference
 
 | Key | Default | Meaning |
@@ -154,6 +164,8 @@ Slack never auto-joins bots to channels — `/invite` per channel (or just use t
 | `apiBase` | `https://slack.com/api` | Web API base; point at a mock for tests. |
 | `provider` / `model` | host default | Agent route for created sessions. |
 | `cwd` | server cwd | Workspace root for created sessions (must be absolute). |
+| `channelCwd` | — | Per-channel workspace override: `{ "C…": "/abs/path" }`. Lets a Slack sidebar section (channels grouped per project) agree with DSH workspaces. |
+| `permissionPreset` | composition default | Named preset applied to each freshly created session — the same table the web UI's preset switcher offers (`workspace-write`, `danger-full-access`, …). Resumed sessions keep their existing knobs. |
 | `allowedChannelIds` | `[]` | Channel allowlist. Empty + `allowAllChannels: false` denies everything. |
 | `allowAllChannels` | `false` | Explicitly serve every channel the bot is in. |
 | `notifyUnauthorized` | `false` | Reply "not authorized" to rejected channels. |
