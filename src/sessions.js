@@ -38,6 +38,17 @@ export function createChatSessions({ ctx, config, logger }) {
     const options = {}
     if (config.provider !== undefined) options.provider = config.provider
     if (config.model !== undefined) options.model = config.model
+    // Unset route fields fall back to the deployment default route (the
+    // `agent-default-model` settings row), mirroring how the host API proxy
+    // seeds the agents it creates. Optional service: `ctx.get` yields
+    // undefined when the composition does not mount agent-default-model.
+    // Without any route, the persona's strict {{model}} reference and the
+    // request dispatch both fail before the first model call.
+    if (options.provider === undefined || options.model === undefined) {
+      const fallback = ctx.get('agentDefaultModel')?.currentSelection()
+      if (options.provider === undefined && fallback?.provider !== undefined) options.provider = fallback.provider
+      if (options.model === undefined && fallback?.model !== undefined) options.model = fallback.model
+    }
     return options
   }
 
